@@ -14,8 +14,9 @@ I need to do the crossplatform compile, as my host is Mac, containers are Linux
 
 cd crossplatform; ./crossbuild.sh
 
-## Startup tidb cluster
+## Startup tidb cluster/exit
 cd Docker; go build DockerServer.go; ./DockerServer -pdno=3 -tikvno=3 -tidbno=2
+exit: shutdown and cleanup cluster
 
 ## Connect to the tidb cluster:
 mysql -h 127.0.0.1 -P 3690 -u root 
