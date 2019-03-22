@@ -36,5 +36,6 @@ exit: exit client
 pd1 kill: kill the node pd1
 
 TODO: more test method to be added
-Customize test can add to Pd/TiKV/TiDBNodeServer as RPC methond
+
+Customize test can add to Pd/TiKV/TiDBNodeServer.go as RPC methond and call from client.go
 
