@@ -1,4 +1,4 @@
-##TiDB cluster test demo
+## TiDB cluster test demo
 
 This simple demo use golang to startup tidb cluster from docker, so you need to have docker install first. 
 Accept args from cmd line input to specify the number of tidb/pd/tikv nodes, it will automatic startup the cluster with haproxy as well.
@@ -14,7 +14,7 @@ I need to do the crossplatform compile, as my host is Mac, containers are Linux
 
 cd crossplatform; ./crossbuild.sh
 
-##Startup tidb cluster
+## Startup tidb cluster
 cd Docker; go build DockerServer.go; ./DockerServer -pdno=3 -tikvno=3 -tidbno=2
 
 ## Limit container CPU/Memory
@@ -27,17 +27,17 @@ pd0 memory 200000000 500000000: set memory ~200M + swap ~300M on pd0
 ## Shutdown and clean cluster
 exit: Shutdown and clean cluster
 
-##Connect to the tidb cluster:
+## Connect to the tidb cluster:
 mysql -h 127.0.0.1 -P 3690 -u root 
 
-##Connect to control node:
+## Connect to control node:
 docker exec -it control sh
 
-##Run test client from control node, invoke test on the tidb/pd/tikv node:
+## Run test client from control node, invoke test on the tidb/pd/tikv node:
 cd testbin;
 ./client 
 
-##Client usage:
+## Client usage:
 \<node> \<operation> \<args> : perform test operation on node
 
 pd0 memory \<memory in bytes> \<memoryswap in bytes> : set node memory and memoryswap, both values are required
@@ -52,7 +52,7 @@ pd1 kill: kill the node pd1
 TODO: more test method to be added
 Customized test can add to Pd/TiKV/TiDBNodeServer as RPC methond
 
-Example:
+## Example:
 
 Limit container:
 
