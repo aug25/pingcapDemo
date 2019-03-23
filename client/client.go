@@ -7,6 +7,7 @@ import (
 	"net/rpc/jsonrpc"
 	"os"
 	"pingcapDemo/nodeServer"
+	"strconv"
 	"strings"
 )
 
@@ -16,40 +17,71 @@ func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	var text string
 	for text != "exit" { // break the loop if text == "exit"
-		fmt.Print("Enter your test opeartion: <node> <operation> ")
+		fmt.Print("Enter your test opeartion: <node> <operation> <args>")
 		scanner.Scan()
 		text = scanner.Text()
-		testarr:= strings.Split(text," ")
-		if len(testarr)<2{
+		// only node name provided, do nothing
+		testarr := strings.Split(text, " ")
+		if len(testarr) < 2 {
 			continue
 		}
+		// perform test method on testhost
 		var testhost = testarr[0]
-		var testmethod = testarr[1]
-		fmt.Println("connected to "+testhost)
+		var testmethod = testarr[1:]
+		fmt.Println("connected to " + testhost)
 		cliconn, err := jsonrpc.Dial("tcp", testhost+":"+clientport)
 		if err != nil {
 			fmt.Println(err)
+			fmt.Println("Connect failed, please enter valid node name")
+			continue
 		}
+		var serverbin string
 		switch testhost[:2] {
 		case "pd":
-			testOnPD(cliconn,testmethod)
+			serverbin = "pd-server"
+			//testOnPD(cliconn,testmethod)
 		case "ti":
 			switch testhost[2:4] {
 			case "kv":
-				testOnTiKV(cliconn,testmethod)
+				serverbin = "tikv-server"
+				//testOnTiKV(cliconn,testmethod)
 			case "db":
-				testOnTiDB(cliconn,testmethod)
+				serverbin = "tidb-server"
+				//testOnTiDB(cliconn,testmethod)
 			}
 		}
+		testOnNode(cliconn, testmethod, serverbin)
 	}
 
 }
 
-func testOnPD(cliconn *rpc.Client,method string) {
-	pdreq := nodeServer.PdTestRequest{"hello, pd server"}
+func testOnNode(cliconn *rpc.Client, method []string, serverbin string) {
+	req := nodeServer.TestRequest{Echostr: "hello, node server", Serverbin: serverbin}
+	var res nodeServer.TestResponse
+	var remoteMethod string
+	switch method[0] {
+	case "kill":
+		remoteMethod = "KillServer"
+	case "cpu":
+		fmt.Printf("Stree Cpu for %s seconds\n", method[1])
+		remoteMethod = "StressCPU"
+		req.Cpubusytime, _ = strconv.ParseInt(method[1], 10, 64)
+	default:
+		remoteMethod = "GetCurrentIP"
+	}
+	err := cliconn.Call("NodeServer."+remoteMethod, req, &res)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Printf("respone is %s\n", res.Respstr)
+}
+
+// Deprecated: currently just provide common test like echo,get IP,kill, all move to abstract NodeType
+func testOnPD(cliconn *rpc.Client, method []string) {
+	pdreq := nodeServer.PdTestRequest{"hello, PD server"}
 	var pdres nodeServer.PdTestResponse
 	var remoteMethod string
-	switch method {
+	switch method[0] {
 	case "kill":
 		remoteMethod = "KillPdServer"
 	default:
@@ -62,11 +94,12 @@ func testOnPD(cliconn *rpc.Client,method string) {
 	fmt.Printf("respone is %s\n", pdres.Respstr)
 }
 
-func testOnTiKV(cliconn *rpc.Client,method string) {
+// Deprecated: currently just provide common test like echo,get IP,kill, all move to abstract NodeType
+func testOnTiKV(cliconn *rpc.Client, method []string) {
 	tikvreq := nodeServer.TiKVTestRequest{"hello, TiKV server"}
 	var tikvres nodeServer.TiKVTestResponse
 	var remoteMethod string
-	switch method {
+	switch method[0] {
 	case "kill":
 		remoteMethod = "KillTiKVServer"
 	default:
@@ -77,15 +110,20 @@ func testOnTiKV(cliconn *rpc.Client,method string) {
 		fmt.Println(err)
 	}
 	fmt.Printf("respone is %s\n", tikvres.Respstr)
-
 }
-func testOnTiDB(cliconn *rpc.Client,method string) {
-	tidbreq := nodeServer.TiDBTestRequest{"hello, TiDB server"}
+
+// Deprecated: currently just provide common test like echo,get IP,kill, all move to abstract NodeType
+func testOnTiDB(cliconn *rpc.Client, method []string) {
+	tidbreq := nodeServer.TiDBTestRequest{Echostr: "hello, TiDB server"}
 	var tidbres nodeServer.TiDBTestResponse
 	var remoteMethod string
-	switch method {
+	switch method[0] {
 	case "kill":
 		remoteMethod = "KillTiDBServer"
+	case "cpu":
+		fmt.Printf("Stree TiDB Cpu for %s seconds\n", method[1])
+		remoteMethod = "StressCPU"
+		tidbreq.Cpubusytime, _ = strconv.ParseInt(method[1], 10, 64)
 	default:
 		remoteMethod = "GetCurrentIP"
 	}

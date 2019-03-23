@@ -1,8 +1,9 @@
 package main
+
 /*
 This is the entry point to startup the program
 provide a json config file to setup the TiDB cluster
- */
+*/
 import (
 	"fmt"
 	"net"
@@ -11,14 +12,13 @@ import (
 	"os"
 	"pingcapDemo/nodeServer"
 )
-func main() {
-	rpc.Register(new(nodeServer.PdNodeServer))
-	rpc.Register(new(nodeServer.TiKVNodeServer))
-	rpc.Register(new(nodeServer.TiDBNodeServer))
 
-	listener,err := net.Listen("tcp","0.0.0.0:3302")
+func main() {
+	rpc.Register(new(nodeServer.NodeServer))
+
+	listener, err := net.Listen("tcp", "0.0.0.0:3302")
 	fmt.Println("Start listening on tcp:3302")
-	if err != nil{
+	if err != nil {
 		fmt.Println(err)
 	}
 

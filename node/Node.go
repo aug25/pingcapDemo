@@ -4,27 +4,28 @@ import (
 	"fmt"
 )
 
-type nodeType string
+type NodeType string
 
 const (
-	NodeTiDB  nodeType = "TiDB"
-	NodePD    nodeType = "PD"
-	NodeTiKV  nodeType = "TiKV"
-	NodeProxy nodeType = "Haproxy"
-	NodeControl nodeType = "Control"
+	NodeTiDB    NodeType = "TiDB"
+	NodePD      NodeType = "PD"
+	NodeTiKV    NodeType = "TiKV"
+	NodeProxy   NodeType = "Haproxy"
+	NodeControl NodeType = "Control"
 )
 
-type Node struct{
-	Name string
-	Type nodeType
+type Node struct {
+	Name        string
+	Type        NodeType
+	ContainerID string
+	TestMethod  string
+	TestArgs    []string
 }
 
-func (node *Node) Startup(){
-	fmt.Println("Startup Node:"+ node.Name +" Type:" + string(node.Type)  )
+func (node *Node) Startup() {
+	fmt.Println("Startup Node:" + node.Name + " Type:" + string(node.Type))
 }
 
-func (node *Node) Shutdown(){
-	fmt.Println("Shutdown Node:"+ node.Name)
+func (node *Node) Shutdown() {
+	fmt.Println("Shutdown Node:" + node.Name)
 }
-
-

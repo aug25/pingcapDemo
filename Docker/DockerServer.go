@@ -14,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 	"pingcapDemo/node"
+	"pingcapDemo/util"
+	"strconv"
 	"time"
 )
 
@@ -34,20 +36,16 @@ var tidbno = flag.Int("tidbno", 2, "number of TiDB server to run")
 
 // Just a demo, not a good practice
 // Be careful about global variable, := in func will create local var and mask global var
-var pdclusterstr, titkvpdstr, tidbpdbstr, haproxyid,controlid, networkid string
-var pdids, tikvids, tidbids []string
-var pdnodes, tikvnodes, tidbnodes []node.Node
-var haproxy,control node.Node
+var pdclusterstr, titkvpdstr, tidbpdbstr, networkid string
+var pdnodes, tikvnodes, tidbnodes, allnodes []*node.Node
+var haproxy, control node.Node
 
 func main() {
 	flag.Parse()
-	pdids = make([]string, *pdno)
-	tikvids = make([]string, *tikvno)
-	tidbids = make([]string, *tidbno)
-
-	pdnodes = make([]node.Node, *pdno)
-	tikvnodes = make([]node.Node, *tikvno)
-	tidbnodes = make([]node.Node, *tidbno)
+	pdnodes = make([]*node.Node, *pdno)
+	tikvnodes = make([]*node.Node, *tikvno)
+	tidbnodes = make([]*node.Node, *tidbno)
+	fmt.Printf("we have %d nodes\n", len(allnodes))
 
 	var a, b, c bytes.Buffer
 	a.Grow(100)
@@ -56,17 +54,18 @@ func main() {
 	a.WriteString("--initial-cluster=")
 	b.WriteString("--pd=")
 	c.WriteString("--path=")
-	for i, n := range pdnodes {
-		n.Name = fmt.Sprintf("pd%d", i)
-		a.WriteString(n.Name)
+	for i := 0; i < *pdno; i++ {
+
+		pdName := fmt.Sprintf("pd%d", i)
+		a.WriteString(pdName)
 		a.WriteString("=http://")
-		a.WriteString(n.Name)
+		a.WriteString(pdName)
 		a.WriteString(":2380,")
 
-		b.WriteString(n.Name)
+		b.WriteString(pdName)
 		b.WriteString(":2379,")
 
-		c.WriteString(n.Name)
+		c.WriteString(pdName)
 		c.WriteString(":2379,")
 
 	}
@@ -83,51 +82,130 @@ func main() {
 	startupTiDBTestCluster(cli)
 	scanner := bufio.NewScanner(os.Stdin)
 	var text string
-	fmt.Println("Time to do some test from 'control' node, enter exit to shutdown and clean cluster")
+	fmt.Println("Time to limit resource for docker container or go to 'control' node from another terminal and run client test")
+	fmt.Println("CMD: <nodename> <resource> <args> or enter exit to shutdown and clean cluster")
 	for text != "exit" { // break the loop if text == "exit"
 		scanner.Scan()
 		text = scanner.Text()
+		node, err := util.ParseCMD(allnodes, text)
+		if err != nil {
+			log(err)
+		} else {
+			limitContainerResources(cli, node)
+		}
 	}
 	shutdownTiDBTestCluster(cli)
 }
 
+func limitContainerResources(cli *client.Client, node *node.Node) {
+
+	switch node.TestMethod {
+	case "cpu":
+		var cpushare, cpuperiod, cpuquota int64
+		if len(node.TestArgs) > 0 {
+			cpushare, _ = strconv.ParseInt(node.TestArgs[0], 10, 64)
+		}
+		if len(node.TestArgs) > 1 {
+			cpuperiod, _ = strconv.ParseInt(node.TestArgs[1], 10, 64)
+		}
+		if len(node.TestArgs) > 2 {
+			cpuquota, _ = strconv.ParseInt(node.TestArgs[2], 10, 64)
+		}
+		setCPU(cli, node, cpushare, cpuperiod, cpuquota)
+		return
+	case "memory":
+		var memory, memoryswap int64
+		if len(node.TestArgs) > 0 {
+			memory, _ = strconv.ParseInt(node.TestArgs[0], 10, 64)
+		}
+		if len(node.TestArgs) > 1 {
+			memoryswap, _ = strconv.ParseInt(node.TestArgs[1], 10, 64)
+		}
+
+		setMemory(cli, node, memory, memoryswap)
+		return
+	case "io":
+		return
+	case "network":
+		return
+	}
+}
+
+func setCPU(cli *client.Client, node *node.Node, cpushare int64, cpuperiod int64, cpuquota int64) {
+	fmt.Printf("Set %s CPU share to %s, compare to other nodes default 1024, cpu period to %s, cpu quota to %s \n", node.Name, cpushare, cpuperiod, cpuquota)
+	var updateConfig = container.UpdateConfig{
+		Resources: container.Resources{
+			CPUShares: cpushare,
+			CPUPeriod: cpuperiod,
+			CPUQuota:  cpuquota,
+		},
+	}
+	cli.ContainerUpdate(context.Background(), node.ContainerID, updateConfig)
+
+}
+
+func setMemory(cli *client.Client, node *node.Node, memory int64, memoryswap int64) {
+	if memoryswap < memory {
+		fmt.Println("MemorySwap(memory+swap) must larger than Memory")
+		return
+	}
+	fmt.Printf("Set %s Memory to %s bytes, Memory+Swap to %s bytes \n", node.Name, strconv.FormatInt(memory, 10), strconv.FormatInt(memoryswap, 10))
+	var updateConfig = container.UpdateConfig{
+		Resources: container.Resources{
+			Memory:     memory,
+			MemorySwap: memoryswap,
+		},
+	}
+	cli.ContainerUpdate(context.Background(), node.ContainerID, updateConfig)
+}
+
 func startupTiDBTestCluster(cli *client.Client) {
+	fmt.Printf("Create network %s for cluster\n", mynetwork)
 	networkresp, err := cli.NetworkCreate(context.Background(), mynetwork, types.NetworkCreate{})
 	networkid = networkresp.ID
 	log(err)
 
 	fmt.Println("Create and startup PD cluster")
 	for i, n := range pdnodes {
+		n = new(node.Node)
+		pdnodes[i] = n
 		n.Name = fmt.Sprintf("pd%d", i)
 		n.Type = node.NodePD
-		pdids[i] = createContainer(cli, &n)
-		err = cli.NetworkConnect(context.Background(), networkid, pdids[i], nil)
+		n.ContainerID = createContainer(cli, n)
+		err = cli.NetworkConnect(context.Background(), networkid, n.ContainerID, nil)
 		log(err)
-		go startContainer(pdids[i], cli)
+		go startContainer(n.ContainerID, cli)
 	}
 
 	time.Sleep(time.Second * 20)
 
 	fmt.Println("Create and startup TiKV cluster")
 	for i, n := range tikvnodes {
+		n = new(node.Node)
+		tikvnodes[i] = n
 		n.Name = fmt.Sprintf("tikv%d", i)
 		n.Type = node.NodeTiKV
-		tikvids[i] = createContainer(cli, &n)
-		err = cli.NetworkConnect(context.Background(), networkid, tikvids[i], nil)
+		n.ContainerID = createContainer(cli, n)
+		err = cli.NetworkConnect(context.Background(), networkid, n.ContainerID, nil)
 		log(err)
-		go startContainer(tikvids[i], cli)
+		go startContainer(n.ContainerID, cli)
 	}
+	allnodes = append(pdnodes, tikvnodes...)
+
 	time.Sleep(time.Second * 20)
 
 	fmt.Println("Create and startup TiDB cluster")
 	for i, n := range tidbnodes {
+		n = new(node.Node)
+		tidbnodes[i] = n
 		n.Name = fmt.Sprintf("tidb%d", i)
 		n.Type = node.NodeTiDB
-		tidbids[i] = createContainer(cli, &n)
-		err = cli.NetworkConnect(context.Background(), networkid, tidbids[i], nil)
+		n.ContainerID = createContainer(cli, n)
+		err = cli.NetworkConnect(context.Background(), networkid, n.ContainerID, nil)
 		log(err)
-		go startContainer(tidbids[i], cli)
+		go startContainer(n.ContainerID, cli)
 	}
+	allnodes = append(allnodes, tidbnodes...)
 	time.Sleep(time.Second * 20)
 
 	fmt.Println("Create and startup Haproxy")
@@ -136,40 +214,43 @@ func startupTiDBTestCluster(cli *client.Client) {
 		Type: node.NodeProxy,
 	}
 
-	haproxyid = createContainer(cli, &haproxy)
-	cli.NetworkConnect(context.Background(), networkid, haproxyid, nil)
-	go startContainer(haproxyid, cli)
+	haproxy.ContainerID = createContainer(cli, &haproxy)
+	cli.NetworkConnect(context.Background(), networkid, haproxy.ContainerID, nil)
+	startContainer(haproxy.ContainerID, cli)
+	allnodes = append(allnodes, &haproxy)
 
 	fmt.Println("Create and startup Control Node")
 	control = node.Node{
 		Name: "control",
 		Type: node.NodeControl,
 	}
-	controlid = createContainer(cli, &control)
-	cli.NetworkConnect(context.Background(), networkid, controlid, nil)
-	go startContainer(controlid, cli)
+	control.ContainerID = createContainer(cli, &control)
+	cli.NetworkConnect(context.Background(), networkid, control.ContainerID, nil)
+	startContainer(control.ContainerID, cli)
+	allnodes = append(allnodes, &control)
+
 }
 
 func shutdownTiDBTestCluster(cli *client.Client) {
 	fmt.Println("Stop and remove entire Cluster")
-	stopContainer(haproxyid, cli)
-	removeContainer(haproxyid, cli)
-	stopContainer(controlid, cli)
-	removeContainer(controlid, cli)
-	for _, tidbid := range tidbids {
-		stopContainer(tidbid, cli)
-		removeContainer(tidbid, cli)
+	stopContainer(haproxy.ContainerID, cli)
+	removeContainer(haproxy.ContainerID, cli)
+	stopContainer(control.ContainerID, cli)
+	removeContainer(control.ContainerID, cli)
+	for _, tidbnode := range tidbnodes {
+		stopContainer(tidbnode.ContainerID, cli)
+		removeContainer(tidbnode.ContainerID, cli)
 	}
-	for _, tikvid := range tikvids {
-		stopContainer(tikvid, cli)
-		removeContainer(tikvid, cli)
+	for _, tikvnode := range tikvnodes {
+		stopContainer(tikvnode.ContainerID, cli)
+		removeContainer(tikvnode.ContainerID, cli)
 	}
-	for _, pdid := range pdids {
-		stopContainer(pdid, cli)
-		removeContainer(pdid, cli)
+	for _, pdnode := range pdnodes {
+		stopContainer(pdnode.ContainerID, cli)
+		removeContainer(pdnode.ContainerID, cli)
 	}
 	time.Sleep(time.Second * 3)
-
+	fmt.Printf("Remove network %s\n", mynetwork)
 	cli.NetworkRemove(context.Background(), networkid)
 }
 
@@ -190,7 +271,7 @@ func createContainer(cli *client.Client, cnode *node.Node) string {
 	rootPath := filepath.Dir(wd)
 	var config *container.Config
 	var hostConfig *container.HostConfig
-	var mymount = []mount.Mount{
+	var nodemount = []mount.Mount{
 		{
 			Type:     mount.TypeBind,
 			Source:   rootPath + "/data",
@@ -211,18 +292,12 @@ func createContainer(cli *client.Client, cnode *node.Node) string {
 		},
 		{
 			Type:     mount.TypeBind,
-			Source:   rootPath + "/crossplatform/client",
-			Target:   "/testbin/client",
-			ReadOnly: false,
-		},
-		{
-			Type:     mount.TypeBind,
 			Source:   rootPath + "/log",
 			Target:   "/log",
 			ReadOnly: false,
 		}}
 	hostConfig = &container.HostConfig{
-		Mounts: mymount,
+		Mounts: nodemount,
 	}
 	switch cnode.Type {
 	case node.NodePD:
@@ -282,30 +357,41 @@ func createContainer(cli *client.Client, cnode *node.Node) string {
 			Hostname: cnode.Name,
 			Cmd:      []string{},
 		}
-		hostConfig = &container.HostConfig{Mounts: []mount.Mount{
-			{
-				Type:     mount.TypeBind,
-				Source:   rootPath + "/config",
-				Target:   "/usr/local/etc/haproxy",
-				ReadOnly: false,
+		hostConfig = &container.HostConfig{
+			Mounts: []mount.Mount{
+				{
+					Type:     mount.TypeBind,
+					Source:   rootPath + "/config",
+					Target:   "/usr/local/etc/haproxy",
+					ReadOnly: false,
+				},
 			},
-		},
 			PortBindings: nat.PortMap{
-				mysqlport: []nat.PortBinding{{HostIP:   "0.0.0.0", HostPort: mysqlport,},},
-				haproxyport: []nat.PortBinding{{HostIP:   "0.0.0.0", HostPort: haproxyport,},},
+				mysqlport:   []nat.PortBinding{{HostIP: "0.0.0.0", HostPort: mysqlport}},
+				haproxyport: []nat.PortBinding{{HostIP: "0.0.0.0", HostPort: haproxyport}},
 			},
 		}
 	case node.NodeControl:
 		config = &container.Config{
-			Image: "alpine",
+			Image:    "alpine",
 			Hostname: cnode.Name,
-			Cmd:[]string{"/usr/bin/top"},
+			Cmd:      []string{"/usr/bin/top"},
+		}
+		hostConfig = &container.HostConfig{
+			Mounts: []mount.Mount{
+				{
+					Type:     mount.TypeBind,
+					Source:   rootPath + "/crossplatform/client",
+					Target:   "/testbin/client",
+					ReadOnly: false,
+				},
+			},
 		}
 	}
 	body, err := cli.ContainerCreate(context.Background(), config, hostConfig, nil, cnode.Name)
 	log(err)
 	if err == nil {
-		fmt.Printf("Container: %s create SUCCESS\n",body.ID[:12])
+		fmt.Printf("Container: %s create SUCCESS\n", body.ID[:12])
 	}
 	return body.ID
 }
@@ -315,7 +401,7 @@ func startContainer(containerID string, cli *client.Client) {
 	err := cli.ContainerStart(context.Background(), containerID, types.ContainerStartOptions{})
 	log(err)
 	if err == nil {
-		fmt.Printf("Container: %s startup SUCCESS\n",containerID[:12])
+		fmt.Printf("Container: %s startup SUCCESS\n", containerID[:12])
 	}
 	//startup serverDemo on the node and listening for test request
 	execConfig := types.ExecConfig{
@@ -338,7 +424,7 @@ func startContainer(containerID string, cli *client.Client) {
 
 // Stop container
 func stopContainer(containerID string, cli *client.Client) {
-	timeout := time.Second * 10
+	timeout := time.Second * 2
 	err := cli.ContainerStop(context.Background(), containerID, &timeout)
 	log(err)
 	if err == nil {
@@ -351,7 +437,7 @@ func removeContainer(containerID string, cli *client.Client) {
 	err := cli.ContainerRemove(context.Background(), containerID, types.ContainerRemoveOptions{})
 	log(err)
 	if err == nil {
-		fmt.Printf("Container: %s removed\n",containerID[:12])
+		fmt.Printf("Container: %s removed\n", containerID[:12])
 	}
 }
 

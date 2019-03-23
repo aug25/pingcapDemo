@@ -1,8 +1,10 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
+	"pingcapDemo/node"
 	"strings"
 )
 
@@ -28,3 +30,26 @@ func GetLocalIp() string {
 	return localip
 }
 
+func ParseCMD(allnodes []*node.Node, text string) (*node.Node, error) {
+	var textarr = strings.Fields(text)
+	if len(textarr) < 2 {
+		return &node.Node{}, errors.New("cmd not supported, please enter '<node> <operation> <args>' or 'exit'")
+	} else {
+		//test on node
+		testhost := textarr[0]
+		testmethod := textarr[1]
+		var testargs []string
+		if len(textarr) > 2 {
+			testargs = textarr[2:]
+		}
+		for _, n := range allnodes {
+			if n.Name == testhost {
+				n.TestMethod = testmethod
+				n.TestArgs = testargs
+				return n, nil
+			}
+		}
+		return &node.Node{}, errors.New("Invalid node name!")
+	}
+
+}
