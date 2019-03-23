@@ -27,7 +27,7 @@ pd0 memory 200000000 500000000: set memory ~200M + swap ~300M on pd0
 ## Shutdown and clean cluster
 exit: Shutdown and clean cluster
 
-## Connect to the tidb cluster:
+## Connect to the tidb cluster and run SQL:
 mysql -h 127.0.0.1 -P 3690 -u root 
 
 ## Connect to control node:
@@ -44,12 +44,10 @@ pd0 memory \<memory in bytes> \<memoryswap in bytes> : set node memory and memor
 
 tidb0 cpu 10 : stress tidb0 node cpu 100%+ in 10 seconds (work with container cpu restrain can manipulate cpu use percentage, see example)
 
-exit: exit client
-
-## Supported client operation:
 pd1 kill: kill the node pd1
 
-TODO: more test method to be added
+exit: exit client
+
 Customized test can add to Pd/TiKV/TiDBNodeServer as RPC methond
 
 ## Example:
