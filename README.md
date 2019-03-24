@@ -55,7 +55,7 @@ Customized test can add to Pd/TiKV/TiDBNodeServer as RPC methond
 
 Limit container:
 
-tidb0 memory 600000000 600000000
+tidb0 memory 400000000 400000000
 
 pd2 cpu 1024 50000 25000
 
