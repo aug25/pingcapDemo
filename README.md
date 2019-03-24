@@ -7,6 +7,7 @@ Currently, containers are not expose to host, so need to connect to "control" no
 Tested 3 PD, 3 TiKV, 2 TiDB on my MBP 2015
 
 put pingcapDemo into $GOPATH/src
+
 if you want to change node number, please clean /data and /log before run again
 
 ## Build test client/server before cluster deploy
@@ -38,11 +39,11 @@ cd testbin;
 ./client 
 
 ## Client usage:
-\<node> \<operation> \<args> : perform test operation on node
-
-pd0 memory \<memory in bytes> \<memoryswap in bytes> : set node memory and memoryswap, both values are required
+\<node> \<operation> \<args> : perform test operation on node. can run different operation on different node at the same time, seperate by ';'
 
 tidb0 cpu 10 : stress tidb0 node cpu 100%+ in 10 seconds (work with container cpu restrain can manipulate cpu use percentage, see example)
+
+tikv1 io 10000 : stress tikv1 node disk, write 10GB(10,000 MB)
 
 pd1 kill: kill the node pd1
 
@@ -56,13 +57,11 @@ Limit container:
 
 tidb0 memory 600000000 600000000
 
-tidb0 cpu 1024 50000 25000
+pd2 cpu 1024 50000 25000
 
 client test:
 
-pd0 kill 
-
-tidb0 cpu 10
+pd0 kill ; tidb0 cpu 10 ; pd2 cpu 10; tikv0 io 10000
 
 ![screenshot](https://github.com/aug25/pingcapDemo/blob/master/screenshot.png)
 

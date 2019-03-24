@@ -45,7 +45,6 @@ func main() {
 	pdnodes = make([]*node.Node, *pdno)
 	tikvnodes = make([]*node.Node, *tikvno)
 	tidbnodes = make([]*node.Node, *tidbno)
-	fmt.Printf("we have %d nodes\n", len(allnodes))
 
 	var a, b, c bytes.Buffer
 	a.Grow(100)
@@ -128,11 +127,14 @@ func limitContainerResources(cli *client.Client, node *node.Node) {
 		return
 	case "network":
 		return
+	default:
+		fmt.Println("Invalid input, currently support cpu/memory limitation")
+		return
 	}
 }
 
 func setCPU(cli *client.Client, node *node.Node, cpushare int64, cpuperiod int64, cpuquota int64) {
-	fmt.Printf("Set %s CPU share to %s, compare to other nodes default 1024, cpu period to %s, cpu quota to %s \n", node.Name, cpushare, cpuperiod, cpuquota)
+	fmt.Printf("Set %s CPU share to %d, compare to other nodes default 1024, cpu period to %d, cpu quota to %d \n", node.Name, cpushare, cpuperiod, cpuquota)
 	var updateConfig = container.UpdateConfig{
 		Resources: container.Resources{
 			CPUShares: cpushare,

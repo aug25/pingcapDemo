@@ -3,6 +3,7 @@ package nodeServer
 import (
 	"os/exec"
 	"runtime"
+	"strconv"
 	"time"
 )
 import "pingcapDemo/util"
@@ -13,6 +14,7 @@ type TestRequest struct {
 	Serverbin   string
 	Echostr     string
 	Cpubusytime int64
+	IO1Mcount   int64
 }
 
 type TestResponse struct {
@@ -34,6 +36,18 @@ func (p *NodeServer) KillServer(req TestRequest, res *TestResponse) error {
 	if err != nil {
 		return err
 	} else {
+		res.Respstr = "OK"
+		return nil
+	}
+}
+
+func (p *NodeServer) StressIO(req TestRequest, res *TestResponse) error {
+	_, err := exec.Command("dd", "bs=1MB", "count="+strconv.FormatInt(req.IO1Mcount, 10), "if=/dev/zero", "of=/data/nodeiotest").Output()
+	//, "oflag=dsync").Output()
+	if err != nil {
+		return err
+	} else {
+		_, _ = exec.Command("rm", "/data/nodeiotest").Output()
 		res.Respstr = "OK"
 		return nil
 	}

@@ -9,6 +9,7 @@ import (
 	"pingcapDemo/nodeServer"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const clientport = "3302"
@@ -20,60 +21,74 @@ func main() {
 		fmt.Print("Enter your test opeartion: <node> <operation> <args>")
 		scanner.Scan()
 		text = scanner.Text()
-		// only node name provided, do nothing
-		testarr := strings.Split(text, " ")
-		if len(testarr) < 2 {
-			continue
-		}
-		// perform test method on testhost
-		var testhost = testarr[0]
-		var testmethod = testarr[1:]
-		fmt.Println("connected to " + testhost)
-		cliconn, err := jsonrpc.Dial("tcp", testhost+":"+clientport)
-		if err != nil {
-			fmt.Println(err)
-			fmt.Println("Connect failed, please enter valid node name")
-			continue
-		}
-		var serverbin string
-		switch testhost[:2] {
-		case "pd":
-			serverbin = "pd-server"
-			//testOnPD(cliconn,testmethod)
-		case "ti":
-			switch testhost[2:4] {
-			case "kv":
-				serverbin = "tikv-server"
-				//testOnTiKV(cliconn,testmethod)
-			case "db":
-				serverbin = "tidb-server"
-				//testOnTiDB(cliconn,testmethod)
+		batchtext := strings.Split(text, ";")
+		wg := &sync.WaitGroup{}
+		for _, nodetext := range batchtext {
+			// only node name provided, do nothing
+			nodetext = strings.TrimSpace(nodetext)
+			testarr := strings.Split(nodetext, " ")
+			if len(testarr) < 2 {
+				fmt.Println("please provide a operation for node " + testarr[0])
+				continue
 			}
+			// perform test method on testhost
+			var testhost = testarr[0]
+			var testmethod = testarr[1:]
+			wg.Add(1)
+			go testOnNode(testhost, testmethod, wg)
 		}
-		testOnNode(cliconn, testmethod, serverbin)
+		wg.Wait()
 	}
 
 }
 
-func testOnNode(cliconn *rpc.Client, method []string, serverbin string) {
-	req := nodeServer.TestRequest{Echostr: "hello, node server", Serverbin: serverbin}
+func testOnNode(testhost string, method []string, wg *sync.WaitGroup) {
+
+	cliconn, err := jsonrpc.Dial("tcp", testhost+":"+clientport)
+	fmt.Print("connected to " + testhost + ", ")
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println("Connect failed, please enter valid node name")
+		wg.Done()
+		return
+	}
+	req := nodeServer.TestRequest{Echostr: "hello, node server"}
 	var res nodeServer.TestResponse
 	var remoteMethod string
 	switch method[0] {
 	case "kill":
+		switch testhost[:2] {
+		case "pd":
+			req.Serverbin = "pd-server"
+			//testOnPD(cliconn,testmethod)
+		case "ti":
+			switch testhost[2:4] {
+			case "kv":
+				req.Serverbin = "tikv-server"
+				//testOnTiKV(cliconn,testmethod)
+			case "db":
+				req.Serverbin = "tidb-server"
+				//testOnTiDB(cliconn,testmethod)
+			}
+		}
 		remoteMethod = "KillServer"
 	case "cpu":
-		fmt.Printf("Stree Cpu for %s seconds\n", method[1])
+		fmt.Printf("Stress Cpu for %s seconds\n", method[1])
 		remoteMethod = "StressCPU"
 		req.Cpubusytime, _ = strconv.ParseInt(method[1], 10, 64)
+	case "io":
+		fmt.Printf("Stress IO for %sMB\n", method[1])
+		remoteMethod = "StressIO"
+		req.IO1Mcount, _ = strconv.ParseInt(method[1], 10, 64)
 	default:
 		remoteMethod = "GetCurrentIP"
 	}
-	err := cliconn.Call("NodeServer."+remoteMethod, req, &res)
+	err = cliconn.Call("NodeServer."+remoteMethod, req, &res)
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Printf("respone is %s\n", res.Respstr)
+	fmt.Printf("respone from %s is %s\n", testhost, res.Respstr)
+	wg.Done()
 }
 
 // Deprecated: currently just provide common test like echo,get IP,kill, all move to abstract NodeType
@@ -121,7 +136,7 @@ func testOnTiDB(cliconn *rpc.Client, method []string) {
 	case "kill":
 		remoteMethod = "KillTiDBServer"
 	case "cpu":
-		fmt.Printf("Stree TiDB Cpu for %s seconds\n", method[1])
+		fmt.Printf("Stress TiDB Cpu for %s seconds\n", method[1])
 		remoteMethod = "StressCPU"
 		tidbreq.Cpubusytime, _ = strconv.ParseInt(method[1], 10, 64)
 	default:
