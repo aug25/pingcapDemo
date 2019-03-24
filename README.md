@@ -63,6 +63,7 @@ client test:
 
 pd0 kill ; tidb0 cpu 10 ; pd2 cpu 10; tikv0 io 10000
 
-![screenshot](https://github.com/aug25/pingcapDemo/blob/master/screenshot.png)
+![screenshot](https://github.com/aug25/pingcapDemo/blob/master/screenshot1.png)
+![StressIO](https://github.com/aug25/pingcapDemo/blob/master/StressIO.png)
 
 
