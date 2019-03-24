@@ -6,6 +6,7 @@ import (
 )
 
 // Deprecated: move to commond NodeServer
+// Test that specific to TiKV node can add here
 type TiKVNodeServer struct{}
 
 type TiKVTestRequest struct {

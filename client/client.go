@@ -43,7 +43,6 @@ func main() {
 }
 
 func testOnNode(testhost string, method []string, wg *sync.WaitGroup) {
-
 	cliconn, err := jsonrpc.Dial("tcp", testhost+":"+clientport)
 	fmt.Print("connected to " + testhost + ", ")
 	if err != nil {
@@ -91,7 +90,7 @@ func testOnNode(testhost string, method []string, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-// Deprecated: currently just provide common test like echo,get IP,kill, all move to abstract NodeType
+// Deprecated: currently just provide common test like echo,get IP,kill, all move to abstract Node
 func testOnPD(cliconn *rpc.Client, method []string) {
 	pdreq := nodeServer.PdTestRequest{"hello, PD server"}
 	var pdres nodeServer.PdTestResponse
@@ -109,7 +108,7 @@ func testOnPD(cliconn *rpc.Client, method []string) {
 	fmt.Printf("respone is %s\n", pdres.Respstr)
 }
 
-// Deprecated: currently just provide common test like echo,get IP,kill, all move to abstract NodeType
+// Deprecated: currently just provide common test like echo,get IP,kill, all move to abstract Node
 func testOnTiKV(cliconn *rpc.Client, method []string) {
 	tikvreq := nodeServer.TiKVTestRequest{"hello, TiKV server"}
 	var tikvres nodeServer.TiKVTestResponse
@@ -127,7 +126,7 @@ func testOnTiKV(cliconn *rpc.Client, method []string) {
 	fmt.Printf("respone is %s\n", tikvres.Respstr)
 }
 
-// Deprecated: currently just provide common test like echo,get IP,kill, all move to abstract NodeType
+// Deprecated: currently just provide common test like echo,get IP,kill, all move to abstract Node
 func testOnTiDB(cliconn *rpc.Client, method []string) {
 	tidbreq := nodeServer.TiDBTestRequest{Echostr: "hello, TiDB server"}
 	var tidbres nodeServer.TiDBTestResponse

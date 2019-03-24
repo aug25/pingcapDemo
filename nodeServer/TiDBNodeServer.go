@@ -8,6 +8,7 @@ import (
 )
 
 // Deprecated: move to commond NodeServer
+// Test that specific to TiDB node can add here
 type TiDBNodeServer struct{}
 
 type TiDBTestRequest struct {

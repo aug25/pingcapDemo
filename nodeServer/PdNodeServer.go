@@ -6,6 +6,7 @@ import (
 )
 
 // Deprecated: move to commond NodeServer
+// Test that specific to PD node can add here
 type PdNodeServer struct{}
 
 type PdTestRequest struct {

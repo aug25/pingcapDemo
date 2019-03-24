@@ -97,7 +97,6 @@ func main() {
 }
 
 func limitContainerResources(cli *client.Client, node *node.Node) {
-
 	switch node.TestMethod {
 	case "cpu":
 		var cpushare, cpuperiod, cpuquota int64
@@ -143,7 +142,6 @@ func setCPU(cli *client.Client, node *node.Node, cpushare int64, cpuperiod int64
 		},
 	}
 	cli.ContainerUpdate(context.Background(), node.ContainerID, updateConfig)
-
 }
 
 func setMemory(cli *client.Client, node *node.Node, memory int64, memoryswap int64) {
@@ -178,7 +176,6 @@ func startupTiDBTestCluster(cli *client.Client) {
 		log(err)
 		go startContainer(n.ContainerID, cli)
 	}
-
 	time.Sleep(time.Second * 20)
 
 	fmt.Println("Create and startup TiKV cluster")
@@ -193,7 +190,6 @@ func startupTiDBTestCluster(cli *client.Client) {
 		go startContainer(n.ContainerID, cli)
 	}
 	allnodes = append(pdnodes, tikvnodes...)
-
 	time.Sleep(time.Second * 20)
 
 	fmt.Println("Create and startup TiDB cluster")
@@ -268,7 +264,6 @@ func listImage(cli *client.Client) {
 
 // Create container
 func createContainer(cli *client.Client, cnode *node.Node) string {
-
 	wd, _ := os.Getwd()
 	rootPath := filepath.Dir(wd)
 	var config *container.Config
@@ -421,7 +416,6 @@ func startContainer(containerID string, cli *client.Client) {
 	}
 	containerConn, err := cli.ContainerExecAttach(context.Background(), exec.ID, execAttachConfig)
 	_, _, err = containerConn.Reader.ReadLine()
-
 }
 
 // Stop container
